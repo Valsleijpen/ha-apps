@@ -1,5 +1,5 @@
 name: Hewalex2Mqtt
-version: "1.1.0"
+version: "1.2.0"
 slug: hewalex2mqtt
 description: Hewalex PCWU warmtepomp en ZPS zonneboiler naar MQTT
 arch:
