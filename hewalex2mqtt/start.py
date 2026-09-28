@@ -44,8 +44,27 @@ src = patch(r"^(\s+)else:\n(\s+)logger\.info\('cannot process message on topic '
             src, 'ZPS command', True)
 src = patch('def printZPSMqttTopics():',
             """ZPS_WRITE_ALLOWED = ['LegionellaProtEnabled', 'HolidayEnabled', 'CirculationPumpEnabled']
+ZPS_TPRG_ALLOWED = ['TimeProgramCM-F', 'TimeProgramCSat', 'TimeProgramCSun']
+
+def writeZpsTimeProgram(registerName, payload):
+    hours = json.loads(payload)
+    if not isinstance(hours, list) or any((not isinstance(h, int)) or h < 0 or h > 23 for h in hours):
+        logger.info('ZPS tijdprogramma geweigerd, verwacht lijst met uren 0-23: ' + payload)
+        return
+    mask = 0
+    for h in hours:
+        mask |= (1 << h)
+    ser = serial.serial_for_url("socket://%s:%s" % (_Device_Zps_Address, _Device_Zps_Port))
+    dev = ZPS(conHardId, conSoftId, zpsDevId, zpsDevId, on_message_serial)
+    reg = [k for k, v in dev.registers.items() if v['name'] == registerName][0]
+    dev.writeRegister(ser, reg, mask & 0xFFFF)
+    dev.writeRegister(ser, reg + 2, (mask >> 16) & 0xFFFF)
+    ser.close()
+    logger.info('ZPS tijdprogramma geschreven: ' + registerName + ' ' + str(sorted(set(hours))))
 
 def writeZpsConfig(registerName, payload):
+    if registerName in ZPS_TPRG_ALLOWED:
+        return writeZpsTimeProgram(registerName, payload)
     if registerName not in ZPS_WRITE_ALLOWED:
         logger.info('ZPS schrijven geweigerd (niet toegestaan): ' + registerName)
         return
