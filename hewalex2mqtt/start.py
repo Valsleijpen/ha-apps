@@ -28,6 +28,34 @@ src = patch(r'^(\s+)readPCWU\(\)$',
             r'\1try:\n\1    readPCWU()\n\1except Exception as e:\n\1    logger.info("PCWU uitlezen mislukt: " + str(e))',
             src, 'PCWU try', True)
 
+# ZPS: instellingen van de regelaar uitlezen (origineel las hier per ongeluk de status)
+src = patch(r'(def readZPSConfig\(\):[\s\S]*?)dev\.readStatusRegisters', r'\1dev.readConfigRegisters',
+            src, 'ZPS config lezen', True)
+src = patch(r'^(\s+)#readZPSConfig\(\).*$',
+            r'\1try:\n\1    readZPSConfig()\n\1except Exception as e:\n\1    logger.info("ZPS config uitlezen mislukt: " + str(e))',
+            src, 'ZPS config aanroepen', True)
+
+# ZPS: schrijfopdrachten via SolarBoiler/Command/<naam>, alleen veilige instellingen
+src = patch(r"^(\s+)client\.subscribe\(_Device_Pcwu_MqttTopic \+ '/Command/#', qos=1\)$",
+            r"\g<0>\n\1if _Device_Zps_Enabled:\n\1    client.subscribe(_Device_Zps_MqttTopic + '/Command/#', qos=1)\n\1    logger.info('subscribed to : ' + _Device_Zps_MqttTopic + '/Command/#')",
+            src, 'ZPS subscribe', True)
+src = patch(r"^(\s+)else:\n(\s+)logger\.info\('cannot process message on topic ' \+ topic\)",
+            r"\1elif len(arr) == 3 and arr[0] == _Device_Zps_MqttTopic and arr[1] == 'Command':\n\2logger.info('Recieved ZPS command ' + topic)\n\2writeZpsConfig(arr[2], payload)\n\1else:\n\2logger.info('cannot process message on topic ' + topic)",
+            src, 'ZPS command', True)
+src = patch('def printZPSMqttTopics():',
+            """ZPS_WRITE_ALLOWED = ['LegionellaProtEnabled', 'HolidayEnabled', 'CirculationPumpEnabled']
+
+def writeZpsConfig(registerName, payload):
+    if registerName not in ZPS_WRITE_ALLOWED:
+        logger.info('ZPS schrijven geweigerd (niet toegestaan): ' + registerName)
+        return
+    ser = serial.serial_for_url("socket://%s:%s" % (_Device_Zps_Address, _Device_Zps_Port))
+    dev = ZPS(conHardId, conSoftId, zpsDevId, zpsDevId, on_message_serial)
+    dev.write(ser, registerName, payload)
+    ser.close()
+
+def printZPSMqttTopics():""", src, 'ZPS write functie')
+
 src = patch('client.publish(key, val)', 'client.publish(key, val, retain=True)', src, 'retain')
 src = patch('if isinstance(item[1], dict): # skipping dictionaries (time program)',
             'if False: # time program published as list', src, 'tijdprogramma')
