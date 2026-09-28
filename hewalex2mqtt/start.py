@@ -9,9 +9,25 @@ def patch(old, new, text, name, regex=False):
         print('WAARSCHUWING: aanpassing niet toegepast: ' + name, flush=True)
     return result
 
+# PCWU device-ID (warmtepomp)
 dev = str(opts['pcwu_dev_id'])
 src = patch(r'^devHardId = \d+', 'devHardId = ' + dev, src, 'devHardId', True)
 src = patch(r'^devSoftId = \d+', 'devSoftId = ' + dev, src, 'devSoftId', True)
+
+# ZPS krijgt een eigen device-ID (zonneboilerregelaar)
+zps_dev = str(opts.get('zps_dev_id', 2))
+src = patch(r'^devSoftId = (\d+)$', r'devSoftId = \1\nzpsDevId = ' + zps_dev, src, 'zpsDevId', True)
+src = patch('ZPS(conHardId, conSoftId, devHardId, devSoftId,',
+            'ZPS(conHardId, conSoftId, zpsDevId, zpsDevId,', src, 'ZPS eigen id')
+
+# Storing bij de ene module mag de andere niet blokkeren
+src = patch(r'^(\s+)readZPS\(\)$',
+            r'\1try:\n\1    readZPS()\n\1except Exception as e:\n\1    logger.info("ZPS uitlezen mislukt: " + str(e))',
+            src, 'ZPS try', True)
+src = patch(r'^(\s+)readPCWU\(\)$',
+            r'\1try:\n\1    readPCWU()\n\1except Exception as e:\n\1    logger.info("PCWU uitlezen mislukt: " + str(e))',
+            src, 'PCWU try', True)
+
 src = patch('client.publish(key, val)', 'client.publish(key, val, retain=True)', src, 'retain')
 src = patch('if isinstance(item[1], dict): # skipping dictionaries (time program)',
             'if False: # time program published as list', src, 'tijdprogramma')
@@ -21,6 +37,7 @@ src = patch('val = str(item[1])',
 src = 'import json\n' + src
 open('/app/run_hewalex.py', 'w').write(src)
 
+zps_enabled = 'True' if opts.get('zps_enabled', False) else 'False'
 ini = f"""[MQTT]
 MQTT_ip = {opts['mqtt_host']}
 MQTT_port = {opts['mqtt_port']}
@@ -30,9 +47,9 @@ MQTT_pass = {opts['mqtt_pass']}
 MQTT_GatewayDevice_Topic = HewaGate
 
 [ZPS]
-Device_Zps_Enabled = False
-Device_Zps_Address = 127.0.0.1
-Device_Zps_Port = 8899
+Device_Zps_Enabled = {zps_enabled}
+Device_Zps_Address = {opts.get('zps_host', '127.0.0.1')}
+Device_Zps_Port = {opts.get('zps_port', 8899)}
 Device_Zps_MqttTopic = SolarBoiler
 
 [Pcwu]
