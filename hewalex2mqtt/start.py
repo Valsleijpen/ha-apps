@@ -43,7 +43,9 @@ src = patch(r"^(\s+)else:\n(\s+)logger\.info\('cannot process message on topic '
             r"\1elif len(arr) == 3 and arr[0] == _Device_Zps_MqttTopic and arr[1] == 'Command':\n\2logger.info('Recieved ZPS command ' + topic)\n\2writeZpsConfig(arr[2], payload)\n\1else:\n\2logger.info('cannot process message on topic ' + topic)",
             src, 'ZPS command', True)
 src = patch('def printZPSMqttTopics():',
-            """ZPS_WRITE_ALLOWED = ['LegionellaProtEnabled', 'HolidayEnabled', 'CirculationPumpEnabled']
+            """ZPS_WRITE_ALLOWED = ['LegionellaProtEnabled', 'HolidayEnabled', 'CirculationPumpEnabled',
+                     'HolidayStartDay', 'HolidayStartMonth', 'HolidayStartYear',
+                     'HolidayEndDay', 'HolidayEndMonth', 'HolidayEndYear']
 ZPS_TPRG_ALLOWED = ['TimeProgramCM-F', 'TimeProgramCSat', 'TimeProgramCSun']
 
 def writeZpsTimeProgram(registerName, payload):
